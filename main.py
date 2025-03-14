@@ -1,7 +1,8 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from langchain_core.tools import BaseTool
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from langgraph.graph import Graph, END
 from dotenv import load_dotenv
 import datetime
 import platform
@@ -32,10 +33,7 @@ try:
         temperature=0.7,
         api_key=api_key
     )
-    # Verificar la conexión con una pregunta de prueba
-    test_message = [HumanMessage(content="Hola, ¿estás funcionando?")]
-    test_response = llm.invoke(test_message)
-    print("\n✅ Conexión con OpenAI establecida correctamente!")
+    print("\n✅ Asistente listo para ayudarte!")
 except ValueError as ve:
     print(f"\n❌ Error de configuración: {str(ve)}")
     exit(1)
@@ -78,7 +76,10 @@ class AskGPTTool(BaseTool):
 
     def _run(self, query: str) -> str:
         try:
-            messages = [HumanMessage(content=query)]
+            messages = [
+                SystemMessage(content="Eres un asistente amigable y servicial. Proporciona respuestas claras y útiles."),
+                HumanMessage(content=query)
+            ]
             response = llm.invoke(messages)
             return response.content
         except Exception as e:
@@ -90,36 +91,51 @@ class AskGPTTool(BaseTool):
             else:
                 return "Lo siento, tuve un problema al procesar tu pregunta. ¿Podrías intentarlo de nuevo?"
 
-def analyze_intent(message: str) -> tuple:
-    """Analiza el mensaje del usuario para determinar la intención"""
+def analyze_intent(message: str) -> str:
+    """Analiza el mensaje del usuario para determinar la herramienta a usar"""
     message = message.lower()
     
-    # Patrones para reconocer intenciones
-    system_patterns = ["sistema", "computadora", "pc", "ordenador", "información", "specs", "especificaciones"]
-    time_patterns = ["hora", "tiempo", "actual", "reloj", "que hora"]
-    memory_patterns = ["memoria", "ram", "almacenamiento", "espacio"]
+    if any(word in message for word in ["sistema", "computadora", "pc", "ordenador", "specs"]):
+        return "system_info"
+    elif any(word in message for word in ["hora", "tiempo", "reloj"]):
+        return "get_time"
+    elif any(word in message for word in ["memoria", "ram"]):
+        return "memory_usage"
+    return "ask_gpt"
+
+def process_message(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Procesa el mensaje del usuario y genera una respuesta"""
+    message = state["current_input"]
+    tools = state["tools"]
+    tool_map = {tool.name: tool for tool in tools}
     
-    # Verificar intenciones específicas
-    if any(pattern in message for pattern in system_patterns):
-        return "system_info", None
-    elif any(pattern in message for pattern in time_patterns):
-        return "get_time", None
-    elif any(pattern in message for pattern in memory_patterns):
-        return "memory_usage", None
-    else:
-        return "ask_gpt", message
+    try:
+        tool_name = analyze_intent(message)
+        
+        if tool_name == "ask_gpt":
+            response = tool_map[tool_name]._run(message)
+        else:
+            response = tool_map[tool_name]._run()
+            
+        state["current_response"] = response
+        
+    except Exception as e:
+        state["current_response"] = "Lo siento, tuve un problema al procesar tu mensaje. ¿Podrías intentarlo de nuevo?"
+    
+    return state
 
-def get_welcome_message() -> str:
-    return """
-¡Hola! Soy tu asistente virtual. 👋
-
-Puedo ayudarte con información sobre tu computadora, decirte la hora,
-revisar el uso de memoria y responder cualquier otra pregunta que tengas.
-
-¿En qué puedo ayudarte hoy?
-
-(Para salir, escribe 'salir' o 'exit')
-"""
+def create_chat_workflow() -> Graph:
+    """Crea el flujo de trabajo del chat usando LangGraph"""
+    workflow = Graph()
+    
+    # Agregar nodo de procesamiento
+    workflow.add_node("process", process_message)
+    
+    # Definir el flujo
+    workflow.set_entry_point("process")
+    workflow.add_edge("process", END)
+    
+    return workflow.compile()
 
 def run_assistant():
     """Ejecuta el asistente virtual"""
@@ -132,40 +148,43 @@ def run_assistant():
         AskGPTTool()
     ]
     
-    # Mapear herramientas
-    tool_map = {tool.name: tool for tool in tools}
+    # Crear el flujo de trabajo
+    workflow = create_chat_workflow()
     
-    print("\n=== Asistente Virtual ===")
-    print(get_welcome_message())
+    # Estado inicial
+    state = {
+        "tools": tools,
+        "current_input": "",
+        "current_response": None
+    }
+    
+    print("\n👋 ¡Hola! Soy tu asistente virtual.")
+    print("Puedes preguntarme cualquier cosa y haré lo mejor para ayudarte.")
+    print("Para salir, escribe 'salir' o presiona Ctrl+C")
     
     while True:
         try:
-            # Obtener mensaje del usuario
             message = input("\nTú: ").strip()
             
-            # Verificar si el usuario quiere salir
             if message.lower() in ['salir', 'exit', 'quit']:
                 print("\nAsistente: ¡Hasta pronto! 👋")
                 break
-            
-            # Verificar mensaje vacío
+                
             if not message:
-                print("\nAsistente: Por favor, dime en qué puedo ayudarte.")
+                print("\nAsistente: Por favor, dime algo.")
                 continue
+                
+            # Actualizar estado con el mensaje actual
+            state["current_input"] = message
             
-            # Analizar la intención del mensaje
-            tool_type, query = analyze_intent(message)
+            # Procesar mensaje
+            result = workflow.invoke(state)
             
-            # Obtener respuesta
-            try:
-                if tool_type == "ask_gpt":
-                    response = tool_map[tool_type]._run(message)
-                else:
-                    response = tool_map[tool_type]._run()
-                print("\nAsistente:", response)
-            except Exception as e:
-                print("\nAsistente: Lo siento, no pude procesar tu solicitud correctamente.")
-                print("¿Podrías intentar preguntarlo de otra manera?")
+            # Mostrar respuesta
+            print("\nAsistente:", result["current_response"])
+            
+            # Actualizar estado
+            state = result
             
         except KeyboardInterrupt:
             print("\n\nAsistente: ¡Hasta pronto! 👋")
