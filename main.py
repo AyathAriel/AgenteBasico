@@ -1,7 +1,6 @@
 from typing import Dict, Any, List
 from langchain_core.tools import BaseTool
 from langchain_core.messages import HumanMessage, AIMessage
-from langgraph.graph import Graph, END
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 import datetime
@@ -9,26 +8,8 @@ import platform
 import psutil
 import os
 
-
+# Cargar variables de entorno
 load_dotenv()
-
-def show_menu():
-    """Muestra el menú de opciones disponibles"""
-    print("\n=== Menú de Opciones ===")
-    print("1. Comandos del Sistema:")
-    print("   1.1 - Información del sistema")
-    print("   1.2 - Hora actual")
-    print("   1.3 - Uso de memoria RAM")
-    print("\n2. Interacción con ChatGPT:")
-    print("   2.1 - Hacer una pregunta general")
-    print("   2.2 - Iniciar conversación natural")
-    print("   2.3 - Ver última respuesta")
-    print("\n3. Utilidades:")
-    print("   3.1 - Ver historial de comandos")
-    print("   3.2 - Limpiar pantalla")
-    print("   3.3 - Mostrar este menú")
-    print("\n0. Salir")
-    print("=====================")
 
 def check_openai_api_key():
     """Verifica que la API key de OpenAI esté configurada"""
@@ -43,7 +24,7 @@ def check_openai_api_key():
         )
     return api_key
 
-
+# Configurar el modelo de OpenAI
 try:
     api_key = check_openai_api_key()
     llm = ChatOpenAI(
@@ -66,7 +47,6 @@ except Exception as e:
     print("3. Tener una conexión a internet estable")
     exit(1)
 
-
 class SystemInfoTool(BaseTool):
     name: str = "system_info"
     description: str = "Obtiene información del sistema"
@@ -75,14 +55,14 @@ class SystemInfoTool(BaseTool):
         system = platform.system()
         version = platform.version()
         machine = platform.machine()
-        return f"Sistema: {system}, Versión: {version}, Arquitectura: {machine}"
+        return f"Tu sistema es {system} {version} en arquitectura {machine}"
 
 class TimeTool(BaseTool):
     name: str = "get_time"
     description: str = "Obtiene la hora actual"
 
     def _run(self) -> str:
-        return datetime.datetime.now().strftime("%H:%M:%S")
+        return f"Son las {datetime.datetime.now().strftime('%H:%M:%S')}"
 
 class MemoryUsageTool(BaseTool):
     name: str = "memory_usage"
@@ -90,11 +70,11 @@ class MemoryUsageTool(BaseTool):
 
     def _run(self) -> str:
         memory = psutil.virtual_memory()
-        return f"Memoria total: {memory.total/1024/1024/1024:.1f}GB, Usada: {memory.percent}%"
+        return f"Tu computadora tiene {memory.total/1024/1024/1024:.1f}GB de RAM y está usando el {memory.percent}%"
 
 class AskGPTTool(BaseTool):
     name: str = "ask_gpt"
-    description: str = "Pregunta algo a ChatGPT"
+    description: str = "Consulta a ChatGPT para responder preguntas generales"
 
     def _run(self, query: str) -> str:
         try:
@@ -104,154 +84,95 @@ class AskGPTTool(BaseTool):
         except Exception as e:
             error_msg = str(e)
             if "insufficient_quota" in error_msg:
-                return "Error: Has excedido tu cuota de OpenAI. Por favor, verifica tu saldo."
+                return "Lo siento, he excedido mi cuota de uso. ¿Podrías intentarlo más tarde?"
             elif "invalid_api_key" in error_msg:
-                return "Error: La API key no es válida. Por favor, verifica tu configuración."
+                return "Parece que hay un problema con mi configuración. ¿Podrías verificar la API key?"
             else:
-                return f"Error al consultar ChatGPT: {error_msg}"
+                return "Lo siento, tuve un problema al procesar tu pregunta. ¿Podrías intentarlo de nuevo?"
 
-
-tools = [
-    SystemInfoTool(),
-    TimeTool(),
-    MemoryUsageTool(),
-    AskGPTTool()
-]
-
-def process_command(command: str, option: str = None) -> str:
-    """Procesa comandos básicos y devuelve resultados"""
-    if option == "1.1":
-        return tools[0]._run()
-    elif option == "1.2":
-        return tools[1]._run()
-    elif option == "1.3":
-        return tools[2]._run()
-    elif option in ["2.1", "2.2"]:
-        return tools[3]._run(command)
+def analyze_intent(message: str) -> tuple:
+    """Analiza el mensaje del usuario para determinar la intención"""
+    message = message.lower()
+    
+    # Patrones para reconocer intenciones
+    system_patterns = ["sistema", "computadora", "pc", "ordenador", "información", "specs", "especificaciones"]
+    time_patterns = ["hora", "tiempo", "actual", "reloj", "que hora"]
+    memory_patterns = ["memoria", "ram", "almacenamiento", "espacio"]
+    
+    # Verificar intenciones específicas
+    if any(pattern in message for pattern in system_patterns):
+        return "system_info", None
+    elif any(pattern in message for pattern in time_patterns):
+        return "get_time", None
+    elif any(pattern in message for pattern in memory_patterns):
+        return "memory_usage", None
     else:
-        # Procesar comando directo
-        command = command.lower()
-        if "sistema" in command or "info" in command:
-            return tools[0]._run()
-        elif "hora" in command or "tiempo" in command:
-            return tools[1]._run()
-        elif "memoria" in command or "ram" in command:
-            return tools[2]._run()
-        else:
-            return tools[3]._run(command)
+        return "ask_gpt", message
 
-def agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Función principal del agente"""
-    
+def get_welcome_message() -> str:
+    return """
+¡Hola! Soy tu asistente virtual. 👋
 
-    current_input = state["input"]
-    current_option = state.get("option", None)
-    
+Puedo ayudarte con información sobre tu computadora, decirte la hora,
+revisar el uso de memoria y responder cualquier otra pregunta que tengas.
 
-    response = process_command(current_input, current_option)
-    
+¿En qué puedo ayudarte hoy?
 
-    history = state.get("history", [])
-    history.append({
-        "command": current_input,
-        "option": current_option,
-        "response": response
-    })
-    
-    return {
-        "history": history,
-        "output": response,
-        "last_option": current_option
-    }
+(Para salir, escribe 'salir' o 'exit')
+"""
 
-def create_agent_graph() -> Graph:
-    """Crea el grafo del agente"""
-    workflow = Graph()
-    workflow.add_node("agent", agent)
-    workflow.set_entry_point("agent")
-    workflow.add_edge("agent", END)
-    return workflow.compile()
-
-def show_history(history):
-    """Muestra el historial de comandos"""
-    print("\n=== Historial de Comandos ===")
-    for i, entry in enumerate(history, 1):
-        print(f"\n{i}. Comando: {entry['command']}")
-        if entry.get('option'):
-            print(f"   Opción: {entry['option']}")
-        print(f"   Respuesta: {entry['response']}")
-    print("===========================")
-
-def run_agent():
-    """Ejecuta el agente"""
+def run_assistant():
+    """Ejecuta el asistente virtual"""
     
-    # Crear el grafo
-    agent_graph = create_agent_graph()
+    # Crear herramientas
+    tools = [
+        SystemInfoTool(),
+        TimeTool(),
+        MemoryUsageTool(),
+        AskGPTTool()
+    ]
     
-    # Estado inicial
-    state = {
-        "history": [],
-        "input": "",
-        "output": "",
-        "option": None
-    }
+    # Mapear herramientas
+    tool_map = {tool.name: tool for tool in tools}
     
-    print("\n=== Agente Básico con OpenAI ===")
-    show_menu()
+    print("\n=== Asistente Virtual ===")
+    print(get_welcome_message())
     
     while True:
         try:
-            # Obtener opción del usuario
-            option = input("\nIngrese una opción (3.3 para ver menú): ").strip()
+            # Obtener mensaje del usuario
+            message = input("\nTú: ").strip()
             
-            # Procesar opciones especiales
-            if option == "0":
-                print("\nAgente: ¡Hasta pronto!")
+            # Verificar si el usuario quiere salir
+            if message.lower() in ['salir', 'exit', 'quit']:
+                print("\nAsistente: ¡Hasta pronto! 👋")
                 break
-            elif option == "3.1":
-                show_history(state["history"])
-                continue
-            elif option == "3.2":
-                os.system('cls' if os.name == 'nt' else 'clear')
-                continue
-            elif option == "3.3":
-                show_menu()
+            
+            # Verificar mensaje vacío
+            if not message:
+                print("\nAsistente: Por favor, dime en qué puedo ayudarte.")
                 continue
             
-            # Obtener comando/pregunta del usuario
-            if option.startswith("2"):
-                prompt = "Pregunta: "
-            else:
-                prompt = "Comando: "
+            # Analizar la intención del mensaje
+            tool_type, query = analyze_intent(message)
             
-            command = input(prompt).strip()
-            
-            # Verificar comando vacío
-            if not command:
-                print("\nAgente: Por favor, ingrese un comando o pregunta.")
-                continue
-            
-            # Actualizar estado
-            state["input"] = command
-            state["option"] = option
-            
-            # Ejecutar agente
-            result = agent_graph.invoke(state)
-            
-            # Actualizar estado
-            state = result
-            
-            # Mostrar resultado
-            print("\nResultado:", result["output"])
+            # Obtener respuesta
+            try:
+                if tool_type == "ask_gpt":
+                    response = tool_map[tool_type]._run(message)
+                else:
+                    response = tool_map[tool_type]._run()
+                print("\nAsistente:", response)
+            except Exception as e:
+                print("\nAsistente: Lo siento, no pude procesar tu solicitud correctamente.")
+                print("¿Podrías intentar preguntarlo de otra manera?")
             
         except KeyboardInterrupt:
-            print("\n\nAgente: Ejecución interrumpida.")
+            print("\n\nAsistente: ¡Hasta pronto! 👋")
             break
-            
         except Exception as e:
-            print(f"\nError: {str(e)}")
-            print("Por favor, intenta de nuevo.")
-            continue
+            print(f"\nAsistente: Ups, algo salió mal: {str(e)}")
+            print("¿Podrías intentarlo de nuevo?")
 
 if __name__ == "__main__":
-    run_agent()
+    run_assistant()
