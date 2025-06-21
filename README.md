@@ -222,7 +222,7 @@ graph TD
 
 1. Crear clase heredando de `BaseTool`
 2. Implementar método `_run()`
-3. Agregar a la lista de herramientas en `run_dynamic_assistant()`
+3. Agregar a la lista de herramientas en `run_dynamic_asasdfasdsistant()`
 4. Configurar patrones de intención en `config.json`
 
 ### Testing
