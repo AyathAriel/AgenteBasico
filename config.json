@@ -1,0 +1,68 @@
+{
+  "assistant_config": {
+    "name": "Asistente IA Dinámico",
+    "version": "2.0.0",
+    "description": "Asistente completamente dinámico con base de datos vectorial",
+    "features": {
+      "dynamic_context": true,
+      "vector_memory": true,
+      "mcp_integration": true,
+      "real_time_learning": true
+    }
+  },
+  "qdrant_config": {
+    "collection_name": "assistant_memory",
+    "vector_size": 384,
+    "distance_metric": "cosine",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
+  },
+  "capabilities": [
+    {
+      "name": "memoria_vectorial",
+      "description": "Almacenamiento y búsqueda semántica",
+      "enabled": true
+    },
+    {
+      "name": "análisis_problemas",
+      "description": "Resolución de problemas complejos",
+      "enabled": true
+    },
+    {
+      "name": "cálculos_matemáticos",
+      "description": "Operaciones matemáticas avanzadas",
+      "enabled": true
+    },
+    {
+      "name": "información_sistema",
+      "description": "Monitoreo del sistema",
+      "enabled": true
+    },
+    {
+      "name": "asistencia_general",
+      "description": "Consultas generales inteligentes",
+      "enabled": true
+    }
+  ],
+  "intent_patterns": {
+    "memory_operations": {
+      "store": ["recordar", "guardar", "almacenar", "memorizar"],
+      "search": ["buscar en memoria", "qué recuerdas", "información anterior", "buscar recuerdos"],
+      "stats": ["estadísticas", "cuánto recuerdas", "info memoria"]
+    },
+    "calculations": ["calcular", "matemática", "operación", "resultado", "suma", "multiplicar", "dividir", "raíz", "logaritmo"],
+    "system_info": ["sistema", "computadora", "hardware", "specs", "información del sistema", "estado del sistema"],
+    "general_assistance": []
+  },
+  "response_templates": {
+    "greeting": "¡Hola! Soy tu asistente dinámico con memoria vectorial. ¿En qué puedo ayudarte?",
+    "error": "Lo siento, ocurrió un error. Mi conocimiento se actualiza dinámicamente, inténtalo de nuevo.",
+    "success_store": "✅ Información almacenada exitosamente en la base de datos vectorial.",
+    "no_results": "🔍 No encontré información relacionada en la base de datos vectorial."
+  },
+  "learning_settings": {
+    "auto_store_interactions": true,
+    "context_window": 10,
+    "relevance_threshold": 0.7,
+    "max_memory_items": 10000
+  }
+} 

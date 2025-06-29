@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "qdrant": {
+      "command": "C:\\Users\\tu-usuario\\.local\\bin\\mcp-server-qdrant.exe",
+      "args": [],
+      "env": {
+        "QDRANT_URL": "https://tu-cluster-id.region.aws.cloud.qdrant.io:6333",
+        "QDRANT_API_KEY": "tu-jwt-token-aqui",
+        "COLLECTION_NAME": "assistant_memory",
+        "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
+      }
+    }
+  }
+} 
